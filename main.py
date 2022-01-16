@@ -8,12 +8,16 @@ FPS = 30
 
 ArenaColour = pygame.Color(255, 255, 255)
 RobotColour = pygame.Color(65, 82, 110)
+JoystickColour = pygame.Color(0, 0, 0)
 NorthVectorColour = pygame.Color(255, 0, 0)
-PointingVectorColour = pygame.Color(0, 255, 0)
+HeadingVectorColour = pygame.Color(0, 255, 0)
+PointingVectorColour = pygame.Color(0, 0, 255)
 
-PixelsPermm = 15
+PixelsPermm = 3
 
-WindowSize = (800, 800)
+WindowSize_px = (800, 800)
+JoystickDiameter_px = 200
+JoystickKnobDiameter_px = 20
 
 LiPoCellVoltage_V = 3.7
 
@@ -30,11 +34,44 @@ pygame.init()
 
 Clock = pygame.time.Clock()
 
-DisplaySurface = pygame.display.set_mode(WindowSize)
+DisplaySurface = pygame.display.set_mode(WindowSize_px)
 pygame.display.set_caption("Meltybrain Simulator")
 
-class RobotSprite(pygame.sprite.Sprite):
-    def __init__(self, windowSize, diameter, wheelSpacing_mm, wheelDiameter_mm, motorReduction, motorKv, batteryCells):
+class Joystick(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+
+        self.center = pygame.math.Vector2(WindowSize_px[0] - (JoystickDiameter_px / 2), WindowSize_px[1] - (JoystickDiameter_px / 2))
+        self.joystickPosition = self.center
+    
+    def update(self):
+        mouseX = pygame.mouse.get_pos()[0]
+        mouseY = pygame.mouse.get_pos()[1]
+
+        deltaXSquared = (mouseX - self.center[0]) ** 2
+        deltaYSquared = (mouseY - self.center[1]) ** 2
+
+        if math.sqrt(deltaXSquared + deltaYSquared) < (JoystickDiameter_px / 2):
+            self.joystickPosition = pygame.math.Vector2(mouseX, mouseY)
+
+            scaleFactor = 1 / (JoystickDiameter_px / 2)
+
+            headingVector = self.joystickPosition - self.center
+            headingVector.scale_to_length(headingVector.length() * scaleFactor)
+
+            return headingVector
+        
+        else:
+            self.joystickPosition = self.center
+
+            return pygame.math.Vector2(0, 0)
+    
+    def draw(self, surface):
+        pygame.draw.circle(surface, JoystickColour, self.center, (JoystickDiameter_px / 2), 3)
+        pygame.draw.circle(surface, JoystickColour, self.joystickPosition, (JoystickKnobDiameter_px / 2))
+
+class Robot(pygame.sprite.Sprite):
+    def __init__(self, diameter, wheelSpacing_mm, wheelDiameter_mm, motorReduction, motorKv, batteryCells):
         super().__init__()
 
         self.diameter = diameter
@@ -45,10 +82,11 @@ class RobotSprite(pygame.sprite.Sprite):
         self.motorKv = motorKv
         self.batteryCells = batteryCells
 
-        self.position = pygame.math.Vector2(windowSize[0] / 2, windowSize[1] / 2)
+        self.position = pygame.math.Vector2(WindowSize_px[0] / 2, WindowSize_px[1] / 2)
         self.motorSpeed = 1
 
         self.northVector = pygame.math.Vector2(0, -50)
+        self.headingVector = pygame.math.Vector2(0, 0)
         self.pointingVector = self.northVector
     
     def CalculateRotationPerFrame(self):
@@ -60,19 +98,22 @@ class RobotSprite(pygame.sprite.Sprite):
 
         return rotationPerFrame
     
-    def update(self):
+    def update(self, headingVector):
         self.pointingVector = self.pointingVector.rotate(self.CalculateRotationPerFrame())
+        self.headingVector = headingVector
     
     def draw(self, surface):
         # Body
-        pygame.draw.circle(surface, RobotColour, self.position, math.ceil(self.diameter / PixelsPermm))
+        pygame.draw.circle(surface, RobotColour, self.position, math.ceil(self.diameter / 2 / PixelsPermm))
 
         # Vectors
         pygame.draw.line(surface, NorthVectorColour, self.position, (self.northVector + self.position), 3)
+        pygame.draw.line(surface, HeadingVectorColour, self.position, ((self.headingVector * 100) + self.position), 3)
         pygame.draw.line(surface, PointingVectorColour, self.position, (self.pointingVector + self.position), 3)
 
 # Main
-RobotSprite = RobotSprite(WindowSize, RobotDiamater_mm, RobotWheelSpacing_mm, RobotWheelDiameter_mm, RobotMotorReduction, RobotMotorKv, RobotBatteryCells)
+joystick = Joystick()
+robot = Robot(RobotDiamater_mm, RobotWheelSpacing_mm, RobotWheelDiameter_mm, RobotMotorReduction, RobotMotorKv, RobotBatteryCells)
 
 while True:     
     for event in pygame.event.get():              
@@ -80,9 +121,13 @@ while True:
             pygame.quit()
             sys.exit()
     
-    RobotSprite.update()
+    headingVector = joystick.update()
+    robot.update(headingVector)
 
     DisplaySurface.fill(ArenaColour)
-    RobotSprite.draw(DisplaySurface)
+
+    joystick.draw(DisplaySurface)
+    robot.draw(DisplaySurface)
+
     pygame.display.update()
     Clock.tick(FPS)
