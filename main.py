@@ -13,7 +13,7 @@ NorthVectorColour = pygame.Color(255, 0, 0)
 HeadingVectorColour = pygame.Color(0, 255, 0)
 PointingVectorColour = pygame.Color(0, 0, 255)
 
-PixelsPermm = 3
+PixelsPermm = 10
 
 WindowSize_px = (800, 800)
 JoystickDiameter_px = 200
@@ -26,7 +26,7 @@ RobotDiamater_mm = 250
 RobotWheelSpacing_mm = 180
 RobotWheelDiameter_mm = 56
 RobotMotorReduction = 3
-RobotMotorKv = 100
+RobotMotorKv = 650
 RobotBatteryCells = 4
 
 # Setup
@@ -78,29 +78,48 @@ class Robot(pygame.sprite.Sprite):
         self.wheelSpacing_mm = wheelSpacing_mm
         self.wheelDiameter_mm = wheelDiameter_mm
 
-        self.motorReduction = motorReduction
-        self.motorKv = motorKv
-        self.batteryCells = batteryCells
+        motorTopSpeed_cps = (motorKv * batteryCells * LiPoCellVoltage_V) / (motorReduction * 60)
+        self.maximumTangentialWheelSpeed_mms = math.pi * self.wheelDiameter_mm * motorTopSpeed_cps
+
+        print(motorTopSpeed_cps, self.maximumTangentialWheelSpeed_mms)
 
         self.position = pygame.math.Vector2(WindowSize_px[0] / 2, WindowSize_px[1] / 2)
-        self.motorSpeed = 1
+        self.angle = 0
+
+        self.leftMotorThrottle = 0
+        self.rightMotorThrottle = 0
 
         self.northVector = pygame.math.Vector2(0, -50)
         self.headingVector = pygame.math.Vector2(0, 0)
-        self.pointingVector = self.northVector
-    
-    def CalculateRotationPerFrame(self):
-        wheelAngularVelocity_cps = (self.motorKv * self.batteryCells * LiPoCellVoltage_V * self.motorSpeed) / (self.motorReduction * 60)
-        wheelTangentialVelocity_ms = (math.pi * (self.wheelDiameter_mm / 1000)) * wheelAngularVelocity_cps
-        robotAngularVelocity_cps = wheelTangentialVelocity_ms / (math.pi * (self.diameter / 1000))
-        
-        rotationPerFrame = ((robotAngularVelocity_cps * 360) / FPS) % 360
 
-        return rotationPerFrame
+    def UpdatePosition(self):
+        leftMotorSpeed = self.maximumTangentialWheelSpeed_mms * self.leftMotorThrottle
+        rightMotorSpeed = self.maximumTangentialWheelSpeed_mms * self.rightMotorThrottle
+
+        # Algorithm below almost completly lifted from here: http://rossum.sourceforge.net/papers/DiffSteer/
+        try:
+            turnRadius_mm = (self.wheelSpacing_mm / 2) * (rightMotorSpeed + leftMotorSpeed) / (rightMotorSpeed - leftMotorSpeed)
+
+            deltaX_mm = turnRadius_mm * (math.sin((rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle) - math.sin(self.angle))
+            deltaY_mm = -turnRadius_mm * (math.cos((rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle) - math.cos(self.angle))
+        
+        except ZeroDivisionError:
+            deltaX_mm = rightMotorSpeed * (1 / FPS)
+            deltaY_mm = rightMotorSpeed * (1 / FPS)
+
+        delta_px = pygame.math.Vector2(deltaX_mm / PixelsPermm, deltaY_mm / PixelsPermm)
+
+        self.angle = (rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle
+        self.position = self.position + delta_px
     
     def update(self, headingVector):
-        self.pointingVector = self.pointingVector.rotate(self.CalculateRotationPerFrame())
         self.headingVector = headingVector
+
+        # TODO: Need to replace these lines with the magic code that calculates correct motor throttle
+        self.leftMotorThrottle = headingVector[0]
+        self.rightMotorThrottle = headingVector[1]
+
+        self.UpdatePosition()
     
     def draw(self, surface):
         # Body
@@ -109,7 +128,7 @@ class Robot(pygame.sprite.Sprite):
         # Vectors
         pygame.draw.line(surface, NorthVectorColour, self.position, (self.northVector + self.position), 3)
         pygame.draw.line(surface, HeadingVectorColour, self.position, ((self.headingVector * 100) + self.position), 3)
-        pygame.draw.line(surface, PointingVectorColour, self.position, (self.pointingVector + self.position), 3)
+        pygame.draw.line(surface, PointingVectorColour, self.position, (self.northVector.rotate(math.degrees(self.angle)) + self.position), 3)
 
 # Main
 joystick = Joystick()
