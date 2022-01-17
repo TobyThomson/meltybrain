@@ -4,7 +4,7 @@ from pygame.locals import *
 import math
 
 # Setup Variables
-FPS = 30
+FPS = 60
 
 ArenaColour = pygame.Color(255, 255, 255)
 RobotColour = pygame.Color(65, 82, 110)
@@ -75,20 +75,18 @@ class Joystick(pygame.sprite.Sprite):
         pygame.draw.circle(surface, JoystickColour, self.joystickPosition, (JoystickKnobDiameter_px / 2))
 
 class Robot(pygame.sprite.Sprite):
-    def __init__(self, diameter, wheelSpacing_mm, wheelDiameter_mm, motorReduction, motorKv, batteryCells):
+    def __init__(self, diameter_mm, wheelSpacing_mm, wheelDiameter_mm, motorReduction, motorKv, batteryCells):
         super().__init__()
 
-        self.diameter = diameter
+        self.diameter_mm = diameter_mm
         self.wheelSpacing_mm = wheelSpacing_mm
         self.wheelDiameter_mm = wheelDiameter_mm
 
         motorTopSpeed_cps = (motorKv * batteryCells * LiPoCellVoltage_V) / (motorReduction * 60)
         self.maximumTangentialWheelSpeed_mms = math.pi * self.wheelDiameter_mm * motorTopSpeed_cps
 
-        print(motorTopSpeed_cps, self.maximumTangentialWheelSpeed_mms)
-
-        self.position = pygame.math.Vector2(WindowSize_px[0] / 2, WindowSize_px[1] / 2)
-        self.angle = 0
+        self.position_px = pygame.math.Vector2(WindowSize_px[0] / 2, WindowSize_px[1] / 2)
+        self.angle_rad = 0
 
         self.leftMotorThrottle = 0
         self.rightMotorThrottle = 0
@@ -106,8 +104,8 @@ class Robot(pygame.sprite.Sprite):
         try:
             turnRadius_mm = (self.wheelSpacing_mm / 2) * (rightMotorSpeed + leftMotorSpeed) / (rightMotorSpeed - leftMotorSpeed)
 
-            deltaX_mm = turnRadius_mm * (math.sin((rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle) - math.sin(self.angle))
-            deltaY_mm = -turnRadius_mm * (math.cos((rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle) - math.cos(self.angle))
+            deltaX_mm = turnRadius_mm * (math.sin((rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.sin(self.angle_rad))
+            deltaY_mm = -turnRadius_mm * (math.cos((rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.cos(self.angle_rad))
         
         except ZeroDivisionError:
             deltaX_mm = rightMotorSpeed * (1 / FPS)
@@ -115,8 +113,8 @@ class Robot(pygame.sprite.Sprite):
 
         delta_px = pygame.math.Vector2(deltaX_mm / PixelsPermm, deltaY_mm / PixelsPermm)
 
-        self.angle = (rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle
-        self.position = self.position + delta_px
+        self.angle_rad = (rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad
+        self.position_px = self.position_px + delta_px
     
     def update(self, headingVector):
         self.headingVector = headingVector
@@ -129,18 +127,18 @@ class Robot(pygame.sprite.Sprite):
     
     def draw(self, surface):
         # Body
-        pygame.draw.circle(surface, RobotColour, self.position, math.ceil(self.diameter / 2 / PixelsPermm))
+        pygame.draw.circle(surface, RobotColour, self.position_px, math.ceil(self.diameter_mm / 2 / PixelsPermm))
 
         # Vectors
-        pygame.draw.line(surface, NorthVectorColour, self.position, (self.northVector + self.position), 3)
-        pygame.draw.line(surface, HeadingVectorColour, self.position, ((self.headingVector * 100) + self.position), 3)
-        pygame.draw.line(surface, PointingVectorColour, self.position, (self.northVector.rotate(math.degrees(self.angle)) + self.position), 3)
+        pygame.draw.line(surface, NorthVectorColour, self.position_px, (self.northVector + self.position_px), 3)
+        pygame.draw.line(surface, HeadingVectorColour, self.position_px, ((self.headingVector * 100) + self.position_px), 3)
+        pygame.draw.line(surface, PointingVectorColour, self.position_px, (self.northVector.rotate(math.degrees(self.angle_rad)) + self.position_px), 3)
 
         # Breadcrumbs
         for breadcrumb in self.breadcrumbs:
             pygame.draw.circle(surface, BreadcrumbColour, breadcrumb, (BreadcrumbDiameter_px / 2))
 
-        breadcrumb = [math.ceil(self.position[0]), math.ceil(self.position[1])]
+        breadcrumb = [math.ceil(self.position_px[0]), math.ceil(self.position_px[1])]
         self.breadcrumbs.append(breadcrumb)
 
         if len(self.breadcrumbs) >= MaximumBreadcrumbTrail:
