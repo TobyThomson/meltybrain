@@ -8,6 +8,7 @@ FPS = 30
 
 ArenaColour = pygame.Color(255, 255, 255)
 RobotColour = pygame.Color(65, 82, 110)
+BreadcrumbColour = pygame.Color(170, 70, 15)
 JoystickColour = pygame.Color(0, 0, 0)
 NorthVectorColour = pygame.Color(255, 0, 0)
 HeadingVectorColour = pygame.Color(0, 255, 0)
@@ -18,8 +19,11 @@ PixelsPermm = 10
 WindowSize_px = (800, 800)
 JoystickDiameter_px = 200
 JoystickKnobDiameter_px = 20
+BreadcrumbDiameter_px = 3
 
 LiPoCellVoltage_V = 3.7
+
+MaximumBreadcrumbTrail = 100
 
 # Robot Variables
 RobotDiamater_mm = 250
@@ -92,6 +96,8 @@ class Robot(pygame.sprite.Sprite):
         self.northVector = pygame.math.Vector2(0, -50)
         self.headingVector = pygame.math.Vector2(0, 0)
 
+        self.breadcrumbs = []
+
     def UpdatePosition(self):
         leftMotorSpeed = self.maximumTangentialWheelSpeed_mms * self.leftMotorThrottle
         rightMotorSpeed = self.maximumTangentialWheelSpeed_mms * self.rightMotorThrottle
@@ -129,6 +135,16 @@ class Robot(pygame.sprite.Sprite):
         pygame.draw.line(surface, NorthVectorColour, self.position, (self.northVector + self.position), 3)
         pygame.draw.line(surface, HeadingVectorColour, self.position, ((self.headingVector * 100) + self.position), 3)
         pygame.draw.line(surface, PointingVectorColour, self.position, (self.northVector.rotate(math.degrees(self.angle)) + self.position), 3)
+
+        # Breadcrumbs
+        for breadcrumb in self.breadcrumbs:
+            pygame.draw.circle(surface, BreadcrumbColour, breadcrumb, (BreadcrumbDiameter_px / 2))
+
+        breadcrumb = [math.ceil(self.position[0]), math.ceil(self.position[1])]
+        self.breadcrumbs.append(breadcrumb)
+
+        if len(self.breadcrumbs) >= MaximumBreadcrumbTrail:
+            self.breadcrumbs.pop(0)
 
 # Main
 joystick = Joystick()
