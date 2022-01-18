@@ -11,8 +11,8 @@ RobotColour = pygame.Color(65, 82, 110)
 BreadcrumbColour = pygame.Color(170, 70, 15)
 JoystickColour = pygame.Color(0, 0, 0)
 NorthVectorColour = pygame.Color(255, 0, 0)
-HeadingVectorColour = pygame.Color(0, 255, 0)
-PointingVectorColour = pygame.Color(0, 0, 255)
+steeringVectorColour = pygame.Color(0, 255, 0)
+headingVectorColour = pygame.Color(0, 0, 255)
 
 PixelsPermm = 10
 
@@ -60,10 +60,10 @@ class Joystick(pygame.sprite.Sprite):
 
             scaleFactor = 1 / (JoystickDiameter_px / 2)
 
-            headingVector = self.joystickPosition - self.center
-            headingVector.scale_to_length(headingVector.length() * scaleFactor)
+            steeringVector = self.joystickPosition - self.center
+            steeringVector.scale_to_length(steeringVector.length() * scaleFactor)
 
-            return headingVector
+            return steeringVector
         
         else:
             self.joystickPosition = self.center
@@ -92,7 +92,8 @@ class Robot(pygame.sprite.Sprite):
         self.rightMotorThrottle = 0
 
         self.northVector = pygame.math.Vector2(0, -50)
-        self.headingVector = pygame.math.Vector2(0, 0)
+        self.steeringVector = pygame.math.Vector2(0, 0)
+        self.headingVector = self.northVector
 
         self.breadcrumbs = []
 
@@ -115,13 +116,16 @@ class Robot(pygame.sprite.Sprite):
 
         self.angle_rad = (rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad
         self.position_px = self.position_px + delta_px
+
+        headingAngle = self.angle_rad + (math.pi / 2)
+        self.headingVector = self.northVector.rotate(math.degrees(headingAngle))
     
-    def update(self, headingVector):
-        self.headingVector = headingVector
+    def update(self, steeringVector):
+        self.steeringVector = steeringVector
 
         # TODO: Need to replace these lines with the magic code that calculates correct motor throttle
-        self.leftMotorThrottle = headingVector[0]
-        self.rightMotorThrottle = headingVector[1]
+        self.leftMotorThrottle = abs(steeringVector[0])
+        self.rightMotorThrottle = abs(steeringVector[1])
 
         self.UpdatePosition()
     
@@ -131,8 +135,8 @@ class Robot(pygame.sprite.Sprite):
 
         # Vectors
         pygame.draw.line(surface, NorthVectorColour, self.position_px, (self.northVector + self.position_px), 3)
-        pygame.draw.line(surface, HeadingVectorColour, self.position_px, ((self.headingVector * 100) + self.position_px), 3)
-        pygame.draw.line(surface, PointingVectorColour, self.position_px, (self.northVector.rotate(math.degrees(self.angle_rad)) + self.position_px), 3)
+        pygame.draw.line(surface, steeringVectorColour, self.position_px, ((self.steeringVector * 100) + self.position_px), 3)
+        pygame.draw.line(surface, headingVectorColour, self.position_px, (self.headingVector + self.position_px), 3)
 
         # Breadcrumbs
         for breadcrumb in self.breadcrumbs:
@@ -154,8 +158,8 @@ while True:
             pygame.quit()
             sys.exit()
     
-    headingVector = joystick.update()
-    robot.update(headingVector)
+    steeringVector = joystick.update()
+    robot.update(steeringVector)
 
     DisplaySurface.fill(ArenaColour)
 
