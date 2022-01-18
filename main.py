@@ -52,14 +52,16 @@ class Joystick(pygame.sprite.Sprite):
         self.joystickPosition = self.center
     
     def update(self):
-        mouseX = pygame.mouse.get_pos()[0]
-        mouseY = pygame.mouse.get_pos()[1]
+        mouseX_px = pygame.mouse.get_pos()[0]
+        mouseY_px = pygame.mouse.get_pos()[1]
 
-        deltaXSquared = (mouseX - self.center[0]) ** 2
-        deltaYSquared = (mouseY - self.center[1]) ** 2
+        deltaXSquared = (mouseX_px - self.center[0]) ** 2
+        deltaYSquared = (mouseY_px - self.center[1]) ** 2
 
-        if math.sqrt(deltaXSquared + deltaYSquared) < (JoystickDiameter_px / 2):
-            self.joystickPosition = pygame.math.Vector2(mouseX, mouseY)
+        thumbStickDistance_px = math.sqrt(deltaXSquared + deltaYSquared)
+
+        if thumbStickDistance_px < (JoystickDiameter_px / 2) and thumbStickDistance_px > 0:
+            self.joystickPosition = pygame.math.Vector2(mouseX_px, mouseY_px)
 
             scaleFactor = 1 / (JoystickDiameter_px / 2)
 
