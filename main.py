@@ -147,16 +147,6 @@ class Robot(pygame.sprite.Sprite):
         steeringThrottle = extraWheelTangentialVelocity_mms / self.maximumTangentialWheelVelocity_mms
         steeringThrottle = steeringThrottle * translationThrottle
 
-        '''print(f'\nSteering vector: {self.steeringVector}')
-        print(f'Steering trottle: {translationThrottle}')
-        print(f'Start wheel postion: {startWheelPosition_mm}')
-        print(f'Spin angle (deg): {spinAngle_deg}')
-        print(f'Steer angle (deg): {steerAngle_deg}')
-        print(f'Extra angle (deg): {extraAngle_deg}')
-        print(f'extraWheelArcLength_mm: {extraWheelArcLength_mm}')
-        print(f'extraWheelTangentialVelocity_mms: {extraWheelTangentialVelocity_mms}')
-        print(f'steeringThrottle: {steeringThrottle}')'''
-
         return steeringThrottle
     
     def update(self, steeringVector):
@@ -174,11 +164,6 @@ class Robot(pygame.sprite.Sprite):
 
         self.leftMotorThrottle = max(min(self.leftMotorThrottle, 1), 0)
         self.rightMotorThrottle = max(min(self.rightMotorThrottle, 0), -1)
-
-        '''print(f'\nleftSteeringThrottle: {leftSteeringThrottle}')
-        print(f'leftMotorThrottle: {self.leftMotorThrottle}')
-        print(f'rightSteeringThrottle: {rightSteeringThrottle}')
-        print(f'rightMotorThrottle: {self.rightMotorThrottle}')'''
         
         self.UpdatePosition()
     
