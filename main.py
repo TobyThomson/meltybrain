@@ -4,7 +4,7 @@ from pygame.locals import *
 import math
 
 # Setup Variables
-FPS = 3000
+FPS = 300
 
 ArenaColour = pygame.Color(255, 255, 255)
 RobotColour = pygame.Color(65, 82, 110)
@@ -32,7 +32,7 @@ RobotWheelDiameter_mm = 56
 RobotMotorReduction = 3
 RobotMotorKv = 650
 RobotBatteryCells = 4
-RobotSpinThrottle = 0.5
+RobotSpinThrottle = 0.05
 
 # Setup
 pygame.init()
@@ -83,15 +83,15 @@ class Robot(pygame.sprite.Sprite):
         self.wheelSpacing_mm = wheelSpacing_mm
         self.wheelDiameter_mm = wheelDiameter_mm
 
-        motorTopVelocity_cps = (motorKv * batteryCells * LiPoCellVoltage_V) / (motorReduction * 60)
-        self.maximumTangentialWheelVelocity_mms = math.pi * self.wheelDiameter_mm * motorTopVelocity_cps
+        motorMaxAngularVelocity_cps = (motorKv * batteryCells * LiPoCellVoltage_V) / (motorReduction * 60)
+        self.maximumTangentialWheelVelocity_mms = math.pi * self.wheelDiameter_mm * motorMaxAngularVelocity_cps
 
         self.position_px = pygame.math.Vector2(WindowSize_px[0] / 2, WindowSize_px[1] / 2)
         self.angle_rad = 0
 
         self.spinThrottle = spinThrottle
-        self.leftMotorThrottle = self.spinThrottle / 2
-        self.rightMotorThrottle = self.spinThrottle / 2
+        self.leftMotorThrottle = self.spinThrottle
+        self.rightMotorThrottle = -self.spinThrottle
 
         self.northVector = pygame.math.Vector2(0, -50)
         self.steeringVector = pygame.math.Vector2(0, 0)
@@ -136,6 +136,9 @@ class Robot(pygame.sprite.Sprite):
         return math.degrees(maxAngularVelocity_rads * (1 / FPS))
     
     def CalculateSteeringThrottle(self, startWheelPosition_mm):
+        # pygame .angle_to() seems to get confused by (0, 0) vectors
+        if self.steeringVector.length() == 0: return 0
+
         rotatedSteeringVector = self.steeringVector.rotate(math.degrees(self.angle_rad))
 
         spinAngle_deg = self.CalculateSpinAngle()
@@ -151,14 +154,14 @@ class Robot(pygame.sprite.Sprite):
         extraWheelTangentialVelocity_mms = extraWheelArcLength_mm / (1 / FPS)
         steeringThrottle = extraWheelTangentialVelocity_mms / self.maximumTangentialWheelVelocity_mms
 
-        '''print(f'\nStart wheel postion: {startWheelPosition_mm}')
+        print(f'\nStart wheel postion: {startWheelPosition_mm}')
         print(f'Spin angle (deg): {spinAngle_deg}')
         print(f'Steer angle (deg): {steerAngle_deg}')
         print(f'Extra angle (deg): {extraAngle_deg}')
 
         print(f'extraWheelArcLength_mm: {extraWheelArcLength_mm}')
         print(f'extraWheelTangentialVelocity_mms: {extraWheelTangentialVelocity_mms}')
-        print(f'steeringThrottle: {steeringThrottle}')'''
+        print(f'steeringThrottle: {steeringThrottle}')
 
         return steeringThrottle
     
