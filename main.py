@@ -10,9 +10,8 @@ ArenaColour = pygame.Color(255, 255, 255)
 RobotColour = pygame.Color(65, 82, 110)
 BreadcrumbColour = pygame.Color(170, 70, 15)
 JoystickColour = pygame.Color(0, 0, 0)
-NorthVectorColour = pygame.Color(255, 0, 0)
-steeringVectorColour = pygame.Color(0, 255, 0)
-headingVectorColour = pygame.Color(0, 0, 255)
+SteeringVectorColour = pygame.Color(255, 0, 0)
+HeadingVectorColour = pygame.Color(0, 0, 255)
 
 PixelsPermm = 10
 
@@ -21,9 +20,12 @@ JoystickDiameter_px = 200
 JoystickKnobDiameter_px = 20
 BreadcrumbDiameter_px = 3
 
+HeadingVectorLength_px = 30
+SteeringVectorMaxLength_px = 100
+
 LiPoCellVoltage_V = 3.7
 
-MaximumBreadcrumbTrail = 1500
+MaximumBreadcrumbTrail = 500
 
 # Robot Variables
 RobotDiamater_mm = 250
@@ -93,9 +95,8 @@ class Robot(pygame.sprite.Sprite):
         self.leftMotorThrottle = self.spinThrottle
         self.rightMotorThrottle = -self.spinThrottle
 
-        self.northVector = pygame.math.Vector2(0, -50)
-        self.steeringVector = pygame.math.Vector2(0, 0)
-        self.headingVector = self.northVector
+        self.steeringVector = pygame.math.Vector2()
+        self.headingVector = pygame.math.Vector2()
 
         self.breadcrumbs = []
 
@@ -121,8 +122,8 @@ class Robot(pygame.sprite.Sprite):
         self.angle_rad = self.angle_rad
         self.position_px = self.position_px + delta_px
 
-        headingAngle_rad = -self.angle_rad
-        self.headingVector = self.northVector.rotate(math.degrees(headingAngle_rad))
+        headingAngle_deg = math.degrees(-self.angle_rad)
+        self.headingVector.from_polar((HeadingVectorLength_px, headingAngle_deg))
     
     def CalculateSpinAngle(self):
         spinTangentialWheelVelocity_mms = self.maximumTangentialWheelVelocity_mms * self.spinThrottle
@@ -192,9 +193,8 @@ class Robot(pygame.sprite.Sprite):
         pygame.draw.circle(surface, RobotColour, self.position_px, math.ceil(self.diameter_mm / 2 / PixelsPermm))
 
         # Vectors
-        pygame.draw.line(surface, NorthVectorColour, self.position_px, (self.northVector + self.position_px), 3)
-        pygame.draw.line(surface, steeringVectorColour, self.position_px, ((self.steeringVector * 100) + self.position_px), 3)
-        pygame.draw.line(surface, headingVectorColour, self.position_px, (self.headingVector + self.position_px), 3)
+        pygame.draw.line(surface, SteeringVectorColour, self.position_px, ((self.steeringVector * SteeringVectorMaxLength_px) + self.position_px), 3)
+        pygame.draw.line(surface, HeadingVectorColour, self.position_px, (self.headingVector + self.position_px), 3)
 
         # Breadcrumbs
         for breadcrumb in self.breadcrumbs:
