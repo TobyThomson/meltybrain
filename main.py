@@ -4,7 +4,7 @@ from pygame.locals import *
 import math
 
 # Setup Variables
-FPS = 60
+FPS = 3000
 
 ArenaColour = pygame.Color(255, 255, 255)
 RobotColour = pygame.Color(65, 82, 110)
@@ -23,7 +23,7 @@ BreadcrumbDiameter_px = 3
 
 LiPoCellVoltage_V = 3.7
 
-MaximumBreadcrumbTrail = 100
+MaximumBreadcrumbTrail = 1500
 
 # Robot Variables
 RobotDiamater_mm = 250
@@ -32,7 +32,7 @@ RobotWheelDiameter_mm = 56
 RobotMotorReduction = 3
 RobotMotorKv = 650
 RobotBatteryCells = 4
-RobotSpinThrottle = 0.01
+RobotSpinThrottle = 0.5
 
 # Setup
 pygame.init()
@@ -107,8 +107,9 @@ class Robot(pygame.sprite.Sprite):
         try:
             turnRadius_mm = (self.wheelSpacing_mm / 2) * (rightMotorVelocity_mms + leftMotorVelocity_mms) / (rightMotorVelocity_mms - leftMotorVelocity_mms)
 
-            deltaX_mm = turnRadius_mm * (math.sin((rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.sin(self.angle_rad))
-            deltaY_mm = -turnRadius_mm * (math.cos((rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.cos(self.angle_rad))
+            # X and Y flipped and inverted to convert to the pygame cordinate system
+            deltaX_mm = turnRadius_mm * (math.cos((rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.cos(self.angle_rad))
+            deltaY_mm = -turnRadius_mm * (math.sin((rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.sin(self.angle_rad))
         
         except ZeroDivisionError:
             deltaX_mm = rightMotorVelocity_mms * (1 / FPS)
@@ -117,33 +118,70 @@ class Robot(pygame.sprite.Sprite):
         delta_px = pygame.math.Vector2(deltaX_mm / PixelsPermm, deltaY_mm / PixelsPermm)
 
         self.angle_rad = (rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad
+        self.angle_rad = self.angle_rad
         self.position_px = self.position_px + delta_px
 
-        headingAngle = self.angle_rad + (math.pi / 2)
-        self.headingVector = self.northVector.rotate(math.degrees(headingAngle))
+        headingAngle_rad = -self.angle_rad
+        self.headingVector = self.northVector.rotate(math.degrees(headingAngle_rad))
     
-    def CalculateClosableAngle():
+    def CalculateSpinAngle(self):
         spinTangentialWheelVelocity_mms = self.maximumTangentialWheelVelocity_mms * self.spinThrottle
         angularVelocity_rads = spinTangentialWheelVelocity_mms / (self.wheelSpacing_mm / 2)
-        closableAngle_rad = angularVelocity * (1 / FPS)
 
-        return closableAngle_rad
+        return math.degrees(angularVelocity_rads * (1 / FPS))
+
+    def CalculateMaxAngle(self):
+        maxAngularVelocity_rads = self.maximumTangentialWheelVelocity_mms / (self.wheelSpacing_mm / 2)
+
+        return math.degrees(maxAngularVelocity_rads * (1 / FPS))
+    
+    def CalculateSteeringThrottle(self, startWheelPosition_mm):
+        rotatedSteeringVector = self.steeringVector.rotate(math.degrees(self.angle_rad))
+
+        spinAngle_deg = self.CalculateSpinAngle()
+        maximumAngle_deg = self.CalculateMaxAngle()
+
+        steerAngle_deg = (360 + startWheelPosition_mm.angle_to(rotatedSteeringVector)) / 2
+
+        if steerAngle_deg < 0 or steerAngle_deg > 90: return 0
+        
+        extraAngle_deg = steerAngle_deg - spinAngle_deg
+
+        extraWheelArcLength_mm = (self.wheelSpacing_mm / 2) * math.radians(extraAngle_deg)
+        extraWheelTangentialVelocity_mms = extraWheelArcLength_mm / (1 / FPS)
+        steeringThrottle = extraWheelTangentialVelocity_mms / self.maximumTangentialWheelVelocity_mms
+
+        '''print(f'\nStart wheel postion: {startWheelPosition_mm}')
+        print(f'Spin angle (deg): {spinAngle_deg}')
+        print(f'Steer angle (deg): {steerAngle_deg}')
+        print(f'Extra angle (deg): {extraAngle_deg}')
+
+        print(f'extraWheelArcLength_mm: {extraWheelArcLength_mm}')
+        print(f'extraWheelTangentialVelocity_mms: {extraWheelTangentialVelocity_mms}')
+        print(f'steeringThrottle: {steeringThrottle}')'''
+
+        return steeringThrottle
     
     def update(self, steeringVector):
         self.steeringVector = steeringVector
 
-        # TODO: Need to replace these lines with the magic code that calculates correct motor throttle
-        leftSteeringThrottle = abs(steeringVector[0])
-        rightSteeringThrottle = -abs(steeringVector[1])
+        leftWheelPositionVector_mm = pygame.math.Vector2(-self.wheelSpacing_mm / 2, 0)
+        rightWheelPositionVector_mm = pygame.math.Vector2(self.wheelSpacing_mm / 2, 0)
+
+        leftSteeringThrottle = self.CalculateSteeringThrottle(leftWheelPositionVector_mm)
+        rightSteeringThrottle = self.CalculateSteeringThrottle(rightWheelPositionVector_mm)
 
         self.leftMotorThrottle = self.spinThrottle + leftSteeringThrottle
         self.rightMotorThrottle = -self.spinThrottle + rightSteeringThrottle
 
+        print(f'\nleftSteeringThrottle: {leftSteeringThrottle}')
+        print(f'leftMotorThrottle: {self.leftMotorThrottle}')
+        print(f'rightSteeringThrottle: {rightSteeringThrottle}')
+        print(f'rightMotorThrottle: {self.rightMotorThrottle}')
+
         self.leftMotorThrottle = max(min(self.leftMotorThrottle, 1), 0)
         self.rightMotorThrottle = max(min(self.rightMotorThrottle, 0), -1)
-
-        print(self.leftMotorThrottle, self.rightMotorThrottle)
-
+        
         self.UpdatePosition()
     
     def draw(self, surface):
