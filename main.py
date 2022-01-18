@@ -1,26 +1,31 @@
 import sys
 import pygame
 from pygame.locals import *
+import pygame.freetype
 import math
 
 # Setup Variables
 FPS = 300
-PixelsPermm = 10
+PixelsPermm = 5
 MaximumBreadcrumbTrail = 500
 
 ArenaColour = pygame.Color(255, 255, 255)
+StatsTextColour = pygame.Color(0, 0, 0)
 RobotColour = pygame.Color(65, 82, 110)
 BreadcrumbColour = pygame.Color(170, 70, 15)
 JoystickColour = pygame.Color(0, 0, 0)
 SteeringVectorColour = pygame.Color(255, 0, 0)
-HeadingVectorColour = pygame.Color(0, 0, 255)
+HeadingVectorColour = pygame.Color(0, 255, 0)
 
 WindowSize_px = (800, 800)
+StatsRootLocation_px = (25, 25)
+
 JoystickDiameter_px = 200
 JoystickKnobDiameter_px = 20
 BreadcrumbDiameter_px = 3
 HeadingVectorLength_px = 30
 SteeringVectorMaxLength_px = 100
+StatsTextHeight_px = 20
 
 # Robot Variables
 RobotDiamater_mm = 250
@@ -29,12 +34,13 @@ RobotWheelDiameter_mm = 56
 RobotMotorReduction = 3
 RobotMotorKv = 650
 RobotBatteryCells = 4
-RobotSpinThrottle = 0.1
+RobotSpinThrottle = 0.3
 RobotCellVoltage_V = 3.7
 
 # Setup
 pygame.init()
 
+StatsFont = pygame.freetype.SysFont('Comic Sans MS', StatsTextHeight_px)
 Clock = pygame.time.Clock()
 
 DisplaySurface = pygame.display.set_mode(WindowSize_px)
@@ -47,7 +53,7 @@ class Joystick(pygame.sprite.Sprite):
         self.center = pygame.math.Vector2(WindowSize_px[0] - (JoystickDiameter_px / 2), WindowSize_px[1] - (JoystickDiameter_px / 2))
         self.joystickPosition = self.center
     
-    def update(self):
+    def Update(self):
         mouseX_px = pygame.mouse.get_pos()[0]
         mouseY_px = pygame.mouse.get_pos()[1]
 
@@ -71,7 +77,7 @@ class Joystick(pygame.sprite.Sprite):
 
             return pygame.math.Vector2(0, 0)
     
-    def draw(self, surface):
+    def Draw(self, surface):
         pygame.draw.circle(surface, JoystickColour, self.center, (JoystickDiameter_px / 2), 3)
         pygame.draw.circle(surface, JoystickColour, self.joystickPosition, (JoystickKnobDiameter_px / 2))
 
@@ -116,9 +122,12 @@ class Robot(pygame.sprite.Sprite):
 
         delta_px = pygame.math.Vector2(deltaX_mm / PixelsPermm, deltaY_mm / PixelsPermm)
 
-        self.angle_rad = (rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad
-        self.angle_rad = self.angle_rad
+        deltaVector_mm = pygame.math.Vector2(deltaX_mm, deltaY_mm)
+        deltaAngle_rad = (rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm
+
+        self.angle_rad = deltaAngle_rad + self.angle_rad
         self.position_px = self.position_px + delta_px
+        self.angularVelocity_rads = abs(deltaAngle_rad / (1 / FPS))
 
         headingAngle_deg = math.degrees(-self.angle_rad)
         self.headingVector.from_polar((HeadingVectorLength_px, headingAngle_deg))
@@ -149,7 +158,7 @@ class Robot(pygame.sprite.Sprite):
 
         return steeringThrottle
     
-    def update(self, steeringVector):
+    def Update(self, steeringVector):
         self.steeringVector = steeringVector
         translationThrottle = self.steeringVector.length()
 
@@ -167,7 +176,7 @@ class Robot(pygame.sprite.Sprite):
         
         self.UpdatePosition()
     
-    def draw(self, surface):
+    def Draw(self, surface):
         # Body
         pygame.draw.circle(surface, RobotColour, self.position_px, math.ceil(self.diameter_mm / 2 / PixelsPermm))
 
@@ -184,6 +193,21 @@ class Robot(pygame.sprite.Sprite):
 
         if len(self.breadcrumbs) >= MaximumBreadcrumbTrail:
             self.breadcrumbs.pop(0)
+    
+    def GetStats(self):
+        stats = [   f'Left Motor Throttle: {self.leftMotorThrottle}',
+                    f'Right Motor Throttle: {self.rightMotorThrottle}',
+                    f'Angular Velocity (RPM): {self.angularVelocity_rads * 9.5493}' ]
+        
+        return stats
+
+
+def DrawStats(stats):
+    for i in range(0, len(stats)):
+        stat_position_px = [StatsRootLocation_px[0], StatsRootLocation_px[1]]
+        stat_position_px[1] = stat_position_px[1] + (i * StatsTextHeight_px)
+        StatsFont.render_to(DisplaySurface, stat_position_px, stats[i], StatsTextColour)
+
 
 # Main
 joystick = Joystick()
@@ -195,13 +219,14 @@ while True:
             pygame.quit()
             sys.exit()
     
-    steeringVector = joystick.update()
-    robot.update(steeringVector)
+    steeringVector = joystick.Update()
+    robot.Update(steeringVector)
 
     DisplaySurface.fill(ArenaColour)
-
-    joystick.draw(DisplaySurface)
-    robot.draw(DisplaySurface)
-
+    joystick.Draw(DisplaySurface)
+    robot.Draw(DisplaySurface)
+    stats = robot.GetStats()
+    DrawStats(stats)
+    
     pygame.display.update()
     Clock.tick(FPS)
