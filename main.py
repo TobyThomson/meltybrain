@@ -5,6 +5,8 @@ import math
 
 # Setup Variables
 FPS = 300
+PixelsPermm = 10
+MaximumBreadcrumbTrail = 500
 
 ArenaColour = pygame.Color(255, 255, 255)
 RobotColour = pygame.Color(65, 82, 110)
@@ -13,19 +15,12 @@ JoystickColour = pygame.Color(0, 0, 0)
 SteeringVectorColour = pygame.Color(255, 0, 0)
 HeadingVectorColour = pygame.Color(0, 0, 255)
 
-PixelsPermm = 10
-
 WindowSize_px = (800, 800)
 JoystickDiameter_px = 200
 JoystickKnobDiameter_px = 20
 BreadcrumbDiameter_px = 3
-
 HeadingVectorLength_px = 30
 SteeringVectorMaxLength_px = 100
-
-LiPoCellVoltage_V = 3.7
-
-MaximumBreadcrumbTrail = 500
 
 # Robot Variables
 RobotDiamater_mm = 250
@@ -35,6 +30,7 @@ RobotMotorReduction = 3
 RobotMotorKv = 650
 RobotBatteryCells = 4
 RobotSpinThrottle = 0.1
+RobotCellVoltage_V = 3.7
 
 # Setup
 pygame.init()
@@ -80,14 +76,14 @@ class Joystick(pygame.sprite.Sprite):
         pygame.draw.circle(surface, JoystickColour, self.joystickPosition, (JoystickKnobDiameter_px / 2))
 
 class Robot(pygame.sprite.Sprite):
-    def __init__(self, diameter_mm, wheelSpacing_mm, wheelDiameter_mm, motorReduction, motorKv, batteryCells, spinThrottle):
+    def __init__(self, diameter_mm, wheelSpacing_mm, wheelDiameter_mm, motorReduction, motorKv, batteryCells, cellVoltage_V, spinThrottle):
         super().__init__()
 
         self.diameter_mm = diameter_mm
         self.wheelSpacing_mm = wheelSpacing_mm
         self.wheelDiameter_mm = wheelDiameter_mm
 
-        motorMaxAngularVelocity_cps = (motorKv * batteryCells * LiPoCellVoltage_V) / (motorReduction * 60)
+        motorMaxAngularVelocity_cps = (motorKv * batteryCells * cellVoltage_V) / (motorReduction * 60)
         self.maximumTangentialWheelVelocity_mms = math.pi * self.wheelDiameter_mm * motorMaxAngularVelocity_cps
 
         self.position_px = pygame.math.Vector2(WindowSize_px[0] / 2, WindowSize_px[1] / 2)
@@ -206,7 +202,7 @@ class Robot(pygame.sprite.Sprite):
 
 # Main
 joystick = Joystick()
-robot = Robot(RobotDiamater_mm, RobotWheelSpacing_mm, RobotWheelDiameter_mm, RobotMotorReduction, RobotMotorKv, RobotBatteryCells, RobotSpinThrottle)
+robot = Robot(RobotDiamater_mm, RobotWheelSpacing_mm, RobotWheelDiameter_mm, RobotMotorReduction, RobotMotorKv, RobotBatteryCells, RobotCellVoltage_V, RobotSpinThrottle)
 
 while True:     
     for event in pygame.event.get():              
