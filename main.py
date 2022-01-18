@@ -32,7 +32,7 @@ RobotWheelDiameter_mm = 56
 RobotMotorReduction = 3
 RobotMotorKv = 650
 RobotBatteryCells = 4
-RobotSpinThrottle = 0.05
+RobotSpinThrottle = 0.5
 
 # Setup
 pygame.init()
@@ -146,7 +146,7 @@ class Robot(pygame.sprite.Sprite):
 
         steerAngle_deg = (360 + startWheelPosition_mm.angle_to(rotatedSteeringVector)) / 2
 
-        if steerAngle_deg < 0 or steerAngle_deg > 90: return 0
+        if steerAngle_deg > 90: steerAngle_deg = -steerAngle_deg
         
         extraAngle_deg = steerAngle_deg - spinAngle_deg
 
@@ -154,14 +154,14 @@ class Robot(pygame.sprite.Sprite):
         extraWheelTangentialVelocity_mms = extraWheelArcLength_mm / (1 / FPS)
         steeringThrottle = extraWheelTangentialVelocity_mms / self.maximumTangentialWheelVelocity_mms
 
-        print(f'\nStart wheel postion: {startWheelPosition_mm}')
+        '''print(f'\nStart wheel postion: {startWheelPosition_mm}')
         print(f'Spin angle (deg): {spinAngle_deg}')
         print(f'Steer angle (deg): {steerAngle_deg}')
         print(f'Extra angle (deg): {extraAngle_deg}')
 
         print(f'extraWheelArcLength_mm: {extraWheelArcLength_mm}')
         print(f'extraWheelTangentialVelocity_mms: {extraWheelTangentialVelocity_mms}')
-        print(f'steeringThrottle: {steeringThrottle}')
+        print(f'steeringThrottle: {steeringThrottle}')'''
 
         return steeringThrottle
     
@@ -177,13 +177,13 @@ class Robot(pygame.sprite.Sprite):
         self.leftMotorThrottle = self.spinThrottle + leftSteeringThrottle
         self.rightMotorThrottle = -self.spinThrottle + rightSteeringThrottle
 
-        print(f'\nleftSteeringThrottle: {leftSteeringThrottle}')
-        print(f'leftMotorThrottle: {self.leftMotorThrottle}')
-        print(f'rightSteeringThrottle: {rightSteeringThrottle}')
-        print(f'rightMotorThrottle: {self.rightMotorThrottle}')
-
         self.leftMotorThrottle = max(min(self.leftMotorThrottle, 1), 0)
         self.rightMotorThrottle = max(min(self.rightMotorThrottle, 0), -1)
+
+        '''print(f'\nleftSteeringThrottle: {leftSteeringThrottle}')
+        print(f'leftMotorThrottle: {self.leftMotorThrottle}')
+        print(f'rightSteeringThrottle: {rightSteeringThrottle}')
+        print(f'rightMotorThrottle: {self.rightMotorThrottle}')'''
         
         self.UpdatePosition()
     
