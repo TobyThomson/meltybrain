@@ -32,6 +32,7 @@ RobotWheelDiameter_mm = 56
 RobotMotorReduction = 3
 RobotMotorKv = 650
 RobotBatteryCells = 4
+RobotSpinThrottle = 0.01
 
 # Setup
 pygame.init()
@@ -75,21 +76,22 @@ class Joystick(pygame.sprite.Sprite):
         pygame.draw.circle(surface, JoystickColour, self.joystickPosition, (JoystickKnobDiameter_px / 2))
 
 class Robot(pygame.sprite.Sprite):
-    def __init__(self, diameter_mm, wheelSpacing_mm, wheelDiameter_mm, motorReduction, motorKv, batteryCells):
+    def __init__(self, diameter_mm, wheelSpacing_mm, wheelDiameter_mm, motorReduction, motorKv, batteryCells, spinThrottle):
         super().__init__()
 
         self.diameter_mm = diameter_mm
         self.wheelSpacing_mm = wheelSpacing_mm
         self.wheelDiameter_mm = wheelDiameter_mm
 
-        motorTopSpeed_cps = (motorKv * batteryCells * LiPoCellVoltage_V) / (motorReduction * 60)
-        self.maximumTangentialWheelSpeed_mms = math.pi * self.wheelDiameter_mm * motorTopSpeed_cps
+        motorTopVelocity_cps = (motorKv * batteryCells * LiPoCellVoltage_V) / (motorReduction * 60)
+        self.maximumTangentialWheelVelocity_mms = math.pi * self.wheelDiameter_mm * motorTopVelocity_cps
 
         self.position_px = pygame.math.Vector2(WindowSize_px[0] / 2, WindowSize_px[1] / 2)
         self.angle_rad = 0
 
-        self.leftMotorThrottle = 0
-        self.rightMotorThrottle = 0
+        self.spinThrottle = spinThrottle
+        self.leftMotorThrottle = self.spinThrottle / 2
+        self.rightMotorThrottle = self.spinThrottle / 2
 
         self.northVector = pygame.math.Vector2(0, -50)
         self.steeringVector = pygame.math.Vector2(0, 0)
@@ -98,34 +100,49 @@ class Robot(pygame.sprite.Sprite):
         self.breadcrumbs = []
 
     def UpdatePosition(self):
-        leftMotorSpeed = self.maximumTangentialWheelSpeed_mms * self.leftMotorThrottle
-        rightMotorSpeed = self.maximumTangentialWheelSpeed_mms * self.rightMotorThrottle
+        leftMotorVelocity_mms = self.maximumTangentialWheelVelocity_mms * self.leftMotorThrottle
+        rightMotorVelocity_mms = self.maximumTangentialWheelVelocity_mms * self.rightMotorThrottle
 
         # Algorithm below almost completly lifted from here: http://rossum.sourceforge.net/papers/DiffSteer/
         try:
-            turnRadius_mm = (self.wheelSpacing_mm / 2) * (rightMotorSpeed + leftMotorSpeed) / (rightMotorSpeed - leftMotorSpeed)
+            turnRadius_mm = (self.wheelSpacing_mm / 2) * (rightMotorVelocity_mms + leftMotorVelocity_mms) / (rightMotorVelocity_mms - leftMotorVelocity_mms)
 
-            deltaX_mm = turnRadius_mm * (math.sin((rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.sin(self.angle_rad))
-            deltaY_mm = -turnRadius_mm * (math.cos((rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.cos(self.angle_rad))
+            deltaX_mm = turnRadius_mm * (math.sin((rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.sin(self.angle_rad))
+            deltaY_mm = -turnRadius_mm * (math.cos((rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.cos(self.angle_rad))
         
         except ZeroDivisionError:
-            deltaX_mm = rightMotorSpeed * (1 / FPS)
-            deltaY_mm = rightMotorSpeed * (1 / FPS)
+            deltaX_mm = rightMotorVelocity_mms * (1 / FPS)
+            deltaY_mm = rightMotorVelocity_mms * (1 / FPS)
 
         delta_px = pygame.math.Vector2(deltaX_mm / PixelsPermm, deltaY_mm / PixelsPermm)
 
-        self.angle_rad = (rightMotorSpeed - leftMotorSpeed) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad
+        self.angle_rad = (rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad
         self.position_px = self.position_px + delta_px
 
         headingAngle = self.angle_rad + (math.pi / 2)
         self.headingVector = self.northVector.rotate(math.degrees(headingAngle))
     
+    def CalculateClosableAngle():
+        spinTangentialWheelVelocity_mms = self.maximumTangentialWheelVelocity_mms * self.spinThrottle
+        angularVelocity_rads = spinTangentialWheelVelocity_mms / (self.wheelSpacing_mm / 2)
+        closableAngle_rad = angularVelocity * (1 / FPS)
+
+        return closableAngle_rad
+    
     def update(self, steeringVector):
         self.steeringVector = steeringVector
 
         # TODO: Need to replace these lines with the magic code that calculates correct motor throttle
-        self.leftMotorThrottle = abs(steeringVector[0])
-        self.rightMotorThrottle = abs(steeringVector[1])
+        leftSteeringThrottle = abs(steeringVector[0])
+        rightSteeringThrottle = -abs(steeringVector[1])
+
+        self.leftMotorThrottle = self.spinThrottle + leftSteeringThrottle
+        self.rightMotorThrottle = -self.spinThrottle + rightSteeringThrottle
+
+        self.leftMotorThrottle = max(min(self.leftMotorThrottle, 1), 0)
+        self.rightMotorThrottle = max(min(self.rightMotorThrottle, 0), -1)
+
+        print(self.leftMotorThrottle, self.rightMotorThrottle)
 
         self.UpdatePosition()
     
@@ -150,7 +167,7 @@ class Robot(pygame.sprite.Sprite):
 
 # Main
 joystick = Joystick()
-robot = Robot(RobotDiamater_mm, RobotWheelSpacing_mm, RobotWheelDiameter_mm, RobotMotorReduction, RobotMotorKv, RobotBatteryCells)
+robot = Robot(RobotDiamater_mm, RobotWheelSpacing_mm, RobotWheelDiameter_mm, RobotMotorReduction, RobotMotorKv, RobotBatteryCells, RobotSpinThrottle)
 
 while True:     
     for event in pygame.event.get():              
