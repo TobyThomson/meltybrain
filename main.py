@@ -3,11 +3,13 @@ import pygame
 from pygame.locals import *
 import pygame.freetype
 import math
+import matplotlib.pyplot as plt
 
 # Setup Variables
-FPS = 300
-PixelsPermm = 5
-MaximumBreadcrumbTrail = 500
+FPS = 30
+PixelsPermm = 10
+MaximumBreadcrumbTrail = 0
+MaximumReadings = 50
 
 ArenaColour = pygame.Color(255, 255, 255)
 StatsTextColour = pygame.Color(0, 0, 0)
@@ -37,7 +39,7 @@ RobotBatteryCells = 4
 RobotSpinThrottle = 0.3
 RobotCellVoltage_V = 3.7
 
-# Setup
+# Pygame Setup
 pygame.init()
 
 StatsFont = pygame.freetype.SysFont('Comic Sans MS', StatsTextHeight_px)
@@ -45,6 +47,21 @@ Clock = pygame.time.Clock()
 
 DisplaySurface = pygame.display.set_mode(WindowSize_px)
 pygame.display.set_caption("Meltybrain Simulator")
+
+# Matplotlib Setup
+def CloseApp(event):
+    pygame.quit()
+
+fig, axs = plt.subplots(3, 1)
+fig.canvas.mpl_connect('close_event', CloseApp)
+
+xs = []
+LeftWheelData = []
+RightWheelData = []
+AngularVelocityData = []
+
+plt.ion()
+plt.show()
 
 class Joystick(pygame.sprite.Sprite):
     def __init__(self):
@@ -113,30 +130,32 @@ class Robot(pygame.sprite.Sprite):
             turnRadius_mm = (self.wheelSpacing_mm / 2) * (rightMotorVelocity_mms + leftMotorVelocity_mms) / (rightMotorVelocity_mms - leftMotorVelocity_mms)
 
             # X and Y flipped and inverted to convert to the pygame cordinate system
-            deltaX_mm = turnRadius_mm * (math.cos((rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.cos(self.angle_rad))
-            deltaY_mm = -turnRadius_mm * (math.sin((rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.sin(self.angle_rad))
+            deltaX_mm = turnRadius_mm * (math.cos((rightMotorVelocity_mms - leftMotorVelocity_mms) * (1.0 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.cos(self.angle_rad))
+            deltaY_mm = -turnRadius_mm * (math.sin((rightMotorVelocity_mms - leftMotorVelocity_mms) * (1.0 / FPS) / self.wheelSpacing_mm + self.angle_rad) - math.sin(self.angle_rad))
         
         except ZeroDivisionError:
-            deltaX_mm = rightMotorVelocity_mms * (1 / FPS)
-            deltaY_mm = rightMotorVelocity_mms * (1 / FPS)
+            deltaX_mm = rightMotorVelocity_mms * (1.0 / FPS)
+            deltaY_mm = rightMotorVelocity_mms * (1.0 / FPS)
 
         delta_px = pygame.math.Vector2(deltaX_mm / PixelsPermm, deltaY_mm / PixelsPermm)
 
         deltaVector_mm = pygame.math.Vector2(deltaX_mm, deltaY_mm)
-        deltaAngle_rad = (rightMotorVelocity_mms - leftMotorVelocity_mms) * (1 / FPS) / self.wheelSpacing_mm
+        deltaAngle_rad = (rightMotorVelocity_mms - leftMotorVelocity_mms) * (1.0 / FPS) / self.wheelSpacing_mm
 
         self.angle_rad = deltaAngle_rad + self.angle_rad
         self.position_px = self.position_px + delta_px
-        self.angularVelocity_rads = abs(deltaAngle_rad / (1 / FPS))
+        self.angularVelocity_rpm = abs(deltaAngle_rad / (1.0 / FPS)) * 9.5493
 
         headingAngle_deg = math.degrees(-self.angle_rad)
         self.headingVector.from_polar((HeadingVectorLength_px, headingAngle_deg))
+
+        return (leftMotorVelocity_mms, rightMotorVelocity_mms, self.angularVelocity_rpm)
     
     def CalculateSpinAngle(self):
         spinTangentialWheelVelocity_mms = self.maximumTangentialWheelVelocity_mms * self.spinThrottle
         angularVelocity_rads = spinTangentialWheelVelocity_mms / (self.wheelSpacing_mm / 2)
 
-        return math.degrees(angularVelocity_rads * (1 / FPS))
+        return math.degrees(angularVelocity_rads * (1.0 / FPS))
     
     def CalculateSteeringThrottle(self, startWheelPosition_mm, translationThrottle):
         # pygame .angle_to() seems to get confused by (0, 0) vectors
@@ -152,7 +171,7 @@ class Robot(pygame.sprite.Sprite):
         extraAngle_deg = steerAngle_deg - spinAngle_deg
 
         extraWheelArcLength_mm = (self.wheelSpacing_mm / 2) * math.radians(extraAngle_deg)
-        extraWheelTangentialVelocity_mms = extraWheelArcLength_mm / (1 / FPS)
+        extraWheelTangentialVelocity_mms = extraWheelArcLength_mm / (1.0 / FPS)
         steeringThrottle = extraWheelTangentialVelocity_mms / self.maximumTangentialWheelVelocity_mms
         steeringThrottle = steeringThrottle * translationThrottle
 
@@ -174,7 +193,7 @@ class Robot(pygame.sprite.Sprite):
         self.leftMotorThrottle = max(min(self.leftMotorThrottle, 1), 0)
         self.rightMotorThrottle = max(min(self.rightMotorThrottle, 0), -1)
         
-        self.UpdatePosition()
+        return self.UpdatePosition()
     
     def Draw(self, surface):
         # Body
@@ -197,7 +216,7 @@ class Robot(pygame.sprite.Sprite):
     def GetStats(self):
         stats = [   f'Left Motor Throttle: {self.leftMotorThrottle}',
                     f'Right Motor Throttle: {self.rightMotorThrottle}',
-                    f'Angular Velocity (RPM): {self.angularVelocity_rads * 9.5493}' ]
+                    f'Angular Velocity (RPM): {self.angularVelocity_rpm}' ]
         
         return stats
 
@@ -207,6 +226,46 @@ def DrawStats(stats):
         stat_position_px = [StatsRootLocation_px[0], StatsRootLocation_px[1]]
         stat_position_px[1] = stat_position_px[1] + (i * StatsTextHeight_px)
         StatsFont.render_to(DisplaySurface, stat_position_px, stats[i], StatsTextColour)
+
+def DrawChart(config):
+    axs[0].clear()
+    axs[1].clear()
+    axs[2].clear()
+
+    axs[0].set_title('Left Wheel Velocity') 
+    axs[0].set_xlabel('Time (s)')
+    axs[0].set_ylabel('Tangential Velocity (mm/s)')
+
+    axs[1].set_title('Right Wheel Velocity') 
+    axs[1].set_xlabel('Time (s)')
+    axs[1].set_ylabel('Tangential Velocity (mm/s)')
+
+    axs[2].set_title('Robot Angular Velocity') 
+    axs[2].set_xlabel('Time (s)')
+    axs[2].set_ylabel('Angular Velocity (RPM)')
+
+    axs[0].grid(True)
+    axs[1].grid(True)
+    axs[2].grid(True)
+    
+    xs.append(pygame.time.get_ticks() / 1000)
+
+    LeftWheelData.append(config[0])
+    RightWheelData.append(config[1])
+    AngularVelocityData.append(config[2])
+
+    if len(xs) >= MaximumReadings:
+        xs.pop(0)
+        LeftWheelData.pop(0)
+        RightWheelData.pop(0)
+        AngularVelocityData.pop(0)
+    
+    axs[0].plot(xs, LeftWheelData, color='red')
+    axs[1].plot(xs, RightWheelData, color='green')
+    axs[2].plot(xs, AngularVelocityData, color='blue')
+
+    plt.draw()
+    plt.pause(0.001)
 
 
 # Main
@@ -220,13 +279,14 @@ while True:
             sys.exit()
     
     steeringVector = joystick.Update()
-    robot.Update(steeringVector)
+    config = robot.Update(steeringVector)
+    stats = robot.GetStats()
 
     DisplaySurface.fill(ArenaColour)
     joystick.Draw(DisplaySurface)
     robot.Draw(DisplaySurface)
-    stats = robot.GetStats()
-    DrawStats(stats)
+    #DrawStats(stats)
+    DrawChart(config)
     
     pygame.display.update()
     Clock.tick(FPS)
